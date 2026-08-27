@@ -1,12 +1,25 @@
+# Quickly vibe coded but seems to do the job of getting UBERON and CL and GO terms present in HPO terms.
+
+# Intended use case: enter a set of HPO terms, most likely a patient's set of HPOs, but also all HPOs 
+# associated to a gene may be valuable, and get a set of all possible terms connected to these. 
+
+# The idea: use this to construct a sort of UBERON/CL/... patient "profile", maybe also traversing these
+# ontologies further (use predefined classes of interest for immunology?). Can we then connect this to, e.g.
+# tissue specific expression levels of a given gene of interest with HRA, creating a sort of gene "profile"
+# and then map those to the mentioned ontologies, then we compare patient and gene to prioritize the pathogenic
+# gene more effectively?
+
 from rdflib import Graph, URIRef, OWL, RDF
-
-
+import requests
 
 hpo_terms = ["HP:0100886", "HP:0007373"]
 
-
 g = Graph()
-g.parse("hp.owl")
+
+g.parse(
+    data=requests.get("https://purl.obolibrary.org/obo/hp.owl").text,
+    format="xml",
+)
 
 HPO = "http://purl.obolibrary.org/obo/"
 wanted = ("UBERON_", "CL_", "GO_")
