@@ -1,19 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this folder (`3d-web-work/`), an Angular + BabylonJS web app that visualizes Human Reference Atlas (HRA) 3D organ models and lets a user manipulate/color scene nodes. See `../CLAUDE.md` for overall repo layout.
 
-## Repo layout
+## Commands
 
-This is a hackathon repo with two mostly-independent parts:
-
-- `3d-web-work/` — an Angular + BabylonJS web app that visualizes Human Reference Atlas (HRA) 3D organ models and lets a user manipulate/color scene nodes.
-- `hpo-uberon-terms/data/` — source CSV data mapping HPO (Human Phenotype Ontology) terms to HRA digital objects, used as input to preprocessing.
-
-There is no root-level build; each part is developed independently.
-
-## Commands (`3d-web-work/`)
-
-All commands run from `3d-web-work/`:
+All commands below run from this folder (`3d-web-work/`):
 
 - `npm start` / `ng serve` — dev server at `http://localhost:4200/`, auto-reloads on change.
 - `npm run build` / `ng build` — production build to `dist/`.
@@ -21,7 +12,7 @@ All commands run from `3d-web-work/`:
 - `npm test` / `ng test` — run the Vitest unit test suite.
 - `ng generate component <name>` — scaffold a new component (Angular CLI 22, standalone components).
 
-### Preprocessing script (`3d-web-work/preprocessing/`)
+### Preprocessing script (`preprocessing/`)
 
 `preprocess_hpo_hra.py` converts the HPO-HRA CSV into JSON for the viewer. Requires `pandas` (see `requirements.txt`).
 
@@ -33,7 +24,7 @@ python preprocessing/preprocess_hpo_hra.py
 - Default output dir: `3d-web-work/public/data/` (intended outputs: `hpo_hra_terms.json` flat list, `hpo_hra_by_do.json` grouped by digital object) — **not yet implemented**; the script currently only loads and pprints the dataframe.
 - Both paths are overridable via `--input` / `--output-dir`.
 
-## Architecture (`3d-web-work/`)
+## Architecture
 
 Standalone Angular app (no NgModules), bootstrapped from `src/main.ts` via `app.config.ts` (providers: `provideHttpClient`, `provideBrowserGlobalErrorListeners`).
 
