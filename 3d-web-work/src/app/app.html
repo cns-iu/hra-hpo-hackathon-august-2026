@@ -1,0 +1,10 @@
+<div class="view-toggle">
+  <button (click)="toggleView()">
+    {{ showBabylon() ? 'Show Body UI' : 'Show Babylon Scene' }}
+  </button>
+</div>
+@if (showBabylon()) {
+  <app-babylon-scene class="scene-host" />
+} @else {
+  <app-body-ui-scene class="scene-host" />
+}
