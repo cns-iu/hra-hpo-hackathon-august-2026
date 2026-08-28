@@ -1,23 +1,5 @@
-import {
-  AfterViewInit,
-  Component,
-  ElementRef,
-  HostListener,
-  OnDestroy,
-  ViewChild,
-} from '@angular/core';
-import {
-  AbstractMesh,
-  ArcRotateCamera,
-  Color3,
-  Engine,
-  HemisphericLight,
-  ImportMeshAsync,
-  MeshBuilder,
-  PBRMaterial,
-  Scene,
-  Vector3,
-} from '@babylonjs/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, ViewChild } from '@angular/core';
+import { ArcRotateCamera, Engine, HemisphericLight, ImportMeshAsync, Scene, Vector3 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 
 const KIDNEY_GLB_URL =
@@ -35,18 +17,11 @@ export class BabylonScene implements AfterViewInit, OnDestroy {
 
   private engine?: Engine;
   private scene?: Scene;
-  private readonly boxSize = 0.1;
-  private kidneyMeshes: AbstractMesh[] = [];
 
   ngAfterViewInit(): void {
-    try {
-      this.engine = new Engine(this.canvasRef.nativeElement, true);
-    } catch {
-      return;
-    }
-
+    this.engine = new Engine(this.canvasRef.nativeElement, true);
     this.scene = this.createScene(this.engine);
-    this.loadKidney(this.scene, this.boxSize);
+    this.loadKidney(this.scene);
     this.engine.runRenderLoop(() => this.scene?.render());
   }
 
@@ -63,75 +38,43 @@ export class BabylonScene implements AfterViewInit, OnDestroy {
   private createScene(engine: Engine): Scene {
     const scene = new Scene(engine);
 
-    const camera = new ArcRotateCamera(
-      'camera',
-      -Math.PI / 2,
-      Math.PI / 2.5,
-      100,
-      new Vector3(this.boxSize, 0, 0),
-      scene,
-    );
+    const camera = new ArcRotateCamera('camera', -Math.PI / 2, Math.PI / 2.5, 1, Vector3.Zero(), scene);
     camera.attachControl(this.canvasRef.nativeElement, true);
-    camera.lowerRadiusLimit = this.boxSize;
-    camera.upperRadiusLimit = this.boxSize * 50;
 
-    const light = new HemisphericLight('light', new Vector3(0, 1, 0), scene);
-
-    const box = MeshBuilder.CreateBox('box', { size: this.boxSize }, scene);
+    new HemisphericLight('light', new Vector3(0, 1, 0), scene);
 
     return scene;
   }
 
-  private async loadKidney(scene: Scene, referenceSize: number): Promise<void> {
+  private async loadKidney(scene: Scene): Promise<void> {
     try {
       const result = await ImportMeshAsync(KIDNEY_GLB_URL, scene);
       const root = result.meshes[0];
 
-      // // Normalize scale so the kidney is roughly the same size as the box
-      // const rawBounds = root.getHierarchyBoundingVectors();
-      // const rawSize = rawBounds.max.subtract(rawBounds.min);
-      // const scale = referenceSize / Math.max(rawSize.x, rawSize.y, rawSize.z);
-      // root.scaling.scaleInPlace(scale);
-
-      // Recenter the model, then place it beside the box
       const bounds = root.getHierarchyBoundingVectors();
       const center = bounds.max.add(bounds.min).scale(0.5);
       root.position.subtractInPlace(center);
-      root.position.x += referenceSize * 2;
-      root.scaling = new Vector3(5, 5, 5);
 
-      this.kidneyMeshes = result.meshes.filter((mesh) => mesh.material);
-
-      // Point the camera at the kidney now that we know its final position/size
-      const kidneyBounds = root.getHierarchyBoundingVectors();
-      const kidneyCenter = kidneyBounds.max.add(kidneyBounds.min).scale(0.5);
-      const kidneySize = kidneyBounds.max.subtract(kidneyBounds.min).length();
-
+      const size = bounds.max.subtract(bounds.min).length();
       const camera = scene.activeCamera as ArcRotateCamera;
-      camera.target = kidneyCenter;
-      camera.radius = kidneySize * 2;
-      camera.lowerRadiusLimit = kidneySize * 0.1;
-      camera.upperRadiusLimit = kidneySize * 5;
+      camera.radius = size * 2;
+      camera.lowerRadiusLimit = size * 0.1;
+      camera.upperRadiusLimit = size * 5;
     } catch (err) {
       console.error('Failed to load kidney model', err);
     }
   }
 
-  public helloworld(): void {
-    console.log('HELLO');
-  }
+  /** Enters an immersive-vr WebXR session (Quest Browser and other WebXR-capable browsers). */
+  protected async enterVr(): Promise<void> {
+    if (!this.scene) return;
 
-  public onToggle(event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
-    console.log('toggle changed', checked);
-  }
+    const xr = await this.scene.createDefaultXRExperienceAsync({
+      uiOptions: { sessionMode: 'immersive-vr' },
+    });
 
-  public changeKidneyColor(): void {
-    const color = Color3.FromHexString('#FF0043');
-    for (const mesh of this.kidneyMeshes) {
-      console.log(mesh);
-      (mesh.material as PBRMaterial).albedoColor = color;
+    if (!xr.baseExperience) {
+      console.error('WebXR immersive-vr is not supported on this device/browser.');
     }
   }
-
 }
