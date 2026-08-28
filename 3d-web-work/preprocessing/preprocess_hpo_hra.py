@@ -31,8 +31,17 @@ def iri_to_curie(iri: str) -> str:
     fragment = iri.rstrip("/").rsplit("/", 1)[-1]
     return fragment.replace("_", ":", 1)
 
+
 def load_records(input_path: Path) -> pd.DataFrame:
-    return pd.read_csv(input_path)
+    df = pd.read_csv(input_path)
+    df["term_ontology"] = df["term"].apply(iri_to_curie).str.split(":").str[0]
+    return df
+
+
+def isolate_organ_with_two_plus_as(df: pd.DataFrame) -> pd.DataFrame:
+    counts = df.groupby(["term_label", "digital_object", "term_ontology"]).size().reset_index(name="Count")
+    return counts[(counts["term_ontology"] == "UBERON") & (counts["Count"] >= 2)]
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -42,6 +51,9 @@ def main() -> None:
 
     df = load_records(args.input)
     pprint(df)
+
+    pprint(isolate_organ_with_two_plus_as(df))
+
 
 if __name__ == "__main__":
     main()

@@ -34,6 +34,17 @@ Standalone Angular app (no NgModules), bootstrapped from `src/main.ts` via `app.
 
 Both scene components pull live data from `humanatlas.io` endpoints/CDN at runtime — there are no local fixtures for organ geometry.
 
+### `hra-body-ui` integration
+
+`<hra-body-ui>` is not an npm dependency — it's loaded outside Angular's build entirely, as a plain [Web Component](https://developer.mozilla.org/en-US/docs/Web/API/Web_components):
+
+- `src/index.html` loads `https://cdn.humanatlas.io/ui/body-ui/main.js` (`type="module"`) and `styles.css` directly in `<head>`/`<body>`. That script self-registers the `<hra-body-ui>` custom element via `customElements.define`, making it usable in any HTML on the page.
+- `BodyUiScene` sets `schemas: [CUSTOM_ELEMENTS_SCHEMA]` in its `@Component` decorator so the Angular compiler doesn't reject the unknown `<hra-body-ui>` tag/attributes.
+- `body-ui-scene.html` does `<hra-body-ui [scene]="sceneNodes()">` — a normal Angular property binding that sets the element's `.scene` JS property directly (not an HTML attribute) on every change-detection cycle. The web component watches that property internally and re-renders itself; Angular has no visibility into its internal rendering.
+- All mutation methods in `BodyUiScene` (`colorAllRed`, `resetColors`, `setGlbOpacity`) work by calling `sceneNodes.update(...)` to produce a new array, which flows through the binding into `<hra-body-ui>`'s `scene` property.
+
+If `<hra-body-ui>` ever needs pinning/upgrading, it happens by changing the CDN URL in `src/index.html` — there's no version in `package.json` to bump.
+
 ## Data (`hpo-uberon-terms/`)
 
 `hpo-uberon-terms/data/hpo-hra-relevant-dos.csv` columns: `hpo_iri, hpo_label, term (cell type IRI), term_label, do_type (e.g. 2d-ftu), digital_object (HRA purl), file_url (asset URL, e.g. .svg/.glb on cdn.humanatlas.io)`. This is the join between phenotype terms and the digital objects renderable in `3d-web-work`.
