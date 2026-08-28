@@ -6,7 +6,7 @@ const organIri = '0000059';
 const REFERENCE_ORGAN_SCENE_URL =
   'https://apps.humanatlas.io/api/v1/reference-organ-scene?organ-iri=http%3A%2F%2Fpurl.obolibrary.org%2Fobo%2FUBERON_'+ organIri + '&sex=male';
 
-const HPO_HRA_CSV_URL = '/data/hpo-hra-relevant-dos.csv';
+const HPO_HRA_CSV_URL = 'data/hpo-hra-relevant-dos.csv';
 
 /** Minimal shape of the nodes the hra-body-ui `scene` array holds; only the fields we read/write are typed. */
 interface SceneNode {
