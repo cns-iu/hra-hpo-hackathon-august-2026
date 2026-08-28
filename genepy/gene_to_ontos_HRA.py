@@ -1,184 +1,208 @@
 # LLM coded untested!!!
 
 import argparse
-import math
 import requests
 import pandas as pd
 
-SPARQL = "https://lod.humanatlas.io/sparql"
-API = "https://apps.humanatlas.io/api/grlc/hra-pop/datasets-with-ct"
+ASCTB_BASE_URL = "https://purl.humanatlas.io/asct-b"
 
-PREFIX = """
-PREFIX ccf: <http://purl.org/ccf/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX HRApop: <https://purl.humanatlas.io/graph/hra-pop>
-"""
+# List of organs available in ASCT-B (verified working endpoints)
+ORGANS = [
+    "kidney",
+    "liver",
+    "lung",
+    "heart",
+    "skin",
+    "eye",
+    "spleen",
+    "thymus",
+    "ovary",
+    "prostate",
+    "pancreas",
+    "bone-marrow",
+    "lymph-node",
+    "large-intestine",
+    "small-intestine",
+    "blood-vasculature",
+    "knee",
+    "peripheral-nervous-system",
+    "fallopian-tube",
+    "uterus",
+    "ureter",
+]
 
-def sparql(q):
-    r = requests.get(
-        SPARQL,
-        params={"query": q, "format": "json"},
-        timeout=120,
-    )
-    r.raise_for_status()
-    return r.json()["results"]["bindings"]
 
-def get_cell_types():
-    q = PREFIX + """
-    SELECT DISTINCT ?cell ?label
-    FROM HRApop:
-    WHERE {
-        ?x ccf:has_cell_summary [
-            ccf:has_cell_summary_row [
-                ccf:cell_id ?cell
-            ]
-        ] .
-        FILTER(STRSTARTS(STR(?cell),
-               "http://purl.obolibrary.org/obo/CL_"))
-        ?cell rdfs:label ?label .
-    }
+def fetch_asctb_data(organ):
+    """Fetch ASCT-B data for a specific organ"""
+    url = f"{ASCTB_BASE_URL}/{organ}"
+    try:
+        r = requests.get(
+            url,
+            headers={"Accept": "application/json"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException as e:
+        print(f"  ⚠️  Failed to fetch {organ}: {e}")
+        return None
+
+
+def extract_gene_symbol(hgnc_id, biomarkers_lookup):
+    """Extract gene symbol from HGNC ID using biomarkers lookup"""
+    # hgnc_id format: "HGNC:123"
+    biomarker = biomarkers_lookup.get(hgnc_id, {})
+    return biomarker.get("ccf_pref_label", hgnc_id)
+
+
+def parse_asctb_organ(organ_data, target_genes):
     """
-    return [
-        (x["cell"]["value"], x["label"]["value"])
-        for x in sparql(q)
-    ]
+    Parse ASCT-B organ data and extract gene-cell-anatomy relationships
 
-def get_ct_expression(celltype):
-    r = requests.get(
-        API,
-        params={"celltype": celltype},
-        headers={"Accept": "application/json"},
-        timeout=120,
-    )
-    r.raise_for_status()
-    return r.json()
+    Returns: list of dicts with gene, cell type, and anatomy info
+    """
+    if not organ_data or "data" not in organ_data:
+        return []
 
-def genes_from_file(path):
-    with open(path) as f:
-        return {
-            x.strip().upper()
-            for x in f
-            if x.strip() and not x.startswith("#")
-        }
+    data = organ_data["data"]
 
-def main():
-
-    p = argparse.ArgumentParser()
-    p.add_argument("genes")
-    p.add_argument("-o", "--output",
-                   default="hra_gene_locations.csv")
-    args = p.parse_args()
-
-    genes = genes_from_file(args.genes)
-
-    print(f"Searching HRApop for {len(genes)} genes...")
+    # Build lookup dictionaries
+    biomarkers_lookup = {b["id"]: b for b in data.get("biomarkers", [])}
+    cell_types_lookup = {c["id"]: c for c in data.get("cell_types", [])}
+    anatomical_structures_lookup = {
+        a["id"]: a for a in data.get("anatomical_structures", [])
+    }
 
     rows = []
 
-    for i, (cl_id, cl_label) in enumerate(get_cell_types(), 1):
+    # Parse cell_marker_descriptor entries
+    for descriptor in data.get("cell_marker_descriptor", []):
+        cell_type_id = descriptor.get("primary_cell_type")
+        anatomy_id = descriptor.get("primary_anatomical_structure")
+        biomarker_set = descriptor.get("biomarker_set", [])
 
-        print(f"\rCell types queried: {i}", end="", flush=True)
+        # Get labels
+        cell_type_info = cell_types_lookup.get(cell_type_id, {})
+        cell_type_label = cell_type_info.get("ccf_pref_label", cell_type_id)
 
-        try:
-            data = get_ct_expression(cl_id)
-        except requests.RequestException:
-            continue
+        anatomy_info = anatomical_structures_lookup.get(anatomy_id, {})
+        anatomy_label = anatomy_info.get("ccf_pref_label", anatomy_id)
 
-        # HRA GRLC responses are normally JSON objects containing
-        # a list of records. Be permissive about the exact wrapper.
-        records = (
-            data.get("results")
-            or data.get("data")
-            or data
-        )
+        # Process each biomarker (gene)
+        for hgnc_id in biomarker_set:
+            gene_symbol = extract_gene_symbol(hgnc_id, biomarkers_lookup).upper()
 
-        if isinstance(records, dict):
-            records = records.get("results", records)
-
-        if not isinstance(records, list):
-            continue
-
-        for x in records:
-
-            gene = str(
-                x.get("b_label")
-                or x.get("gene_label")
-                or x.get("B_label")
-                or ""
-            ).upper()
-
-            if gene not in genes:
-                continue
-
-            expression = x.get(
-                "mean_expression",
-                x.get(
-                    "mean_b_expression",
-                    x.get("mean_gene_expr_value")
+            # Check if this gene is in our target list
+            if gene_symbol in target_genes or any(
+                gene in gene_symbol for gene in target_genes
+            ):
+                rows.append(
+                    {
+                        "gene": gene_symbol,
+                        "HGNC": hgnc_id,
+                        "UBERON": (
+                            anatomy_id if anatomy_id.startswith("UBERON:") else ""
+                        ),
+                        "anatomy": anatomy_label,
+                        "CL": (
+                            cell_type_id
+                            if cell_type_id.startswith("CL:")
+                            else cell_type_id.split("/")[-1]
+                        ),
+                        "cell_type": cell_type_label,
+                    }
                 )
-            )
 
-            try:
-                expression = float(expression)
-            except (TypeError, ValueError):
-                continue
+    return rows
 
-            uberon = (
-                x.get("organ_id")
-                or x.get("organ")
-                or x.get("anatomical_structure")
-                or ""
-            )
 
-            anatomy = (
-                x.get("organ_label")
-                or x.get("organ_name")
-                or x.get("organ")
-                or ""
-            )
+def genes_from_file(path):
+    """Read gene symbols from file, returning uppercase set"""
+    with open(path) as f:
+        return {x.strip().upper() for x in f if x.strip() and not x.startswith("#")}
 
-            rows.append({
-                "gene": gene,
-                "UBERON": uberon,
-                "anatomy": anatomy,
-                "CL": cl_id.rsplit("/", 1)[-1],
-                "cell type": cl_label,
-                "mean expression": expression,
-            })
 
-    print()
+def process_genes(gene_symbols, organs=None):
+    """
+    Process a list of gene symbols and return mappings to anatomy/cell types.
 
-    if not rows:
-        raise RuntimeError(
-            "No requested genes were found in HRApop."
-        )
+    Args:
+        gene_symbols: Set or list of gene symbols (e.g., {'CTLA4', 'CD4'})
+        organs: Optional list of specific organs to query (default: all ORGANS)
 
-    df = pd.DataFrame(rows).drop_duplicates()
+    Returns:
+        List of dicts with gene, HGNC, UBERON, anatomy, CL, cell_type
+    """
+    organs_to_query = organs if organs else ORGANS
+    all_rows = []
 
-    # Relevance is relative to each gene.
-    #
-    # First transform expression to reduce domination by very
-    # highly expressed housekeeping genes.
-    df["_score"] = df["mean expression"].clip(lower=0).map(
-        lambda x: math.log1p(x)
+    for organ in organs_to_query:
+        organ_data = fetch_asctb_data(organ)
+        if organ_data:
+            rows = parse_asctb_organ(organ_data, gene_symbols)
+            all_rows.extend(rows)
+
+    return all_rows
+
+
+def main():
+    p = argparse.ArgumentParser(
+        description="Extract gene-to-anatomy mappings from HRA ASCT-B data"
+    )
+    p.add_argument("genes", help="File containing gene symbols (one per line)")
+    p.add_argument(
+        "-o",
+        "--output",
+        default="hra_gene_locations.csv",
+        help="Output CSV file (default: hra_gene_locations.csv)",
+    )
+    p.add_argument(
+        "--organs", nargs="+", help="Specific organs to query (default: all)"
+    )
+    args = p.parse_args()
+
+    # Load target genes
+    target_genes = genes_from_file(args.genes)
+    print(
+        f"🔍 Searching ASCT-B for {len(target_genes)} genes: {', '.join(sorted(target_genes))}"
     )
 
-    # Normalize each gene to its strongest HRA location.
-    df["relevance"] = (
-        df["_score"]
-        / df.groupby("gene")["_score"].transform("max")
-    )
+    # Determine which organs to query
+    organs_to_query = args.organs if args.organs else ORGANS
 
-    df = df.drop(columns="_score")
+    all_rows = []
 
-    df = df.sort_values(
-        ["gene", "relevance"],
-        ascending=[True, False],
-    )
+    # Fetch and parse each organ
+    for i, organ in enumerate(organs_to_query, 1):
+        print(f"[{i}/{len(organs_to_query)}] Fetching {organ}...", end=" ", flush=True)
 
+        organ_data = fetch_asctb_data(organ)
+        if organ_data:
+            rows = parse_asctb_organ(organ_data, target_genes)
+            all_rows.extend(rows)
+            print(f"✓ Found {len(rows)} gene-cell-anatomy mappings")
+        else:
+            print()
+
+    if not all_rows:
+        print("\n❌ No matching genes found in ASCT-B data.")
+        print("Tip: Check gene symbols and ensure they match HGNC naming.")
+        return
+
+    # Create DataFrame and remove duplicates
+    df = pd.DataFrame(all_rows).drop_duplicates()
+
+    # Sort by gene and cell type
+    df = df.sort_values(["gene", "cell_type", "anatomy"])
+
+    # Save to CSV
     df.to_csv(args.output, index=False)
 
-    print(f"Wrote {len(df)} rows to {args.output}")
+    print(f"\n✅ Wrote {len(df)} unique mappings to {args.output}")
+    print(f"   Genes found: {df['gene'].nunique()}")
+    print(f"   Cell types: {df['cell_type'].nunique()}")
+    print(f"   Anatomical structures: {df['anatomy'].nunique()}")
+
 
 if __name__ == "__main__":
     main()
