@@ -4,26 +4,26 @@
   <button (click)="loadHpoHraCsv()">Load HPO-HRA CSV</button>
   <button (click)="ColorByHpoAssociation()">Color by HPO association</button>
   <button (click)="resetColors()">Reset colors</button>
-  <button (click)="logGlbMeshNames()">Log GLB mesh names</button>
+  <!-- <button (click)="logGlbMeshNames()">Log GLB mesh names</button> -->
 </div>
 
 <div class="hpo-terms">
   <table>
-  <tr>
-    <th>HPO Label</th>
-    <th>Term Label</th>
-    <th>Term ID</th>
-    <th>HRA DO Type</th>
-  </tr>
+    <tr>
+      <th>HPO Term</th>
+      <th>HPO Label</th>
+      <th>Term Label</th>
+      <th>Term ID</th>
+    </tr>
 
-  @for (row of hpoHraRows(); track $index) {
+    @for (row of hpoHraRows(); track $index) {
 
-  <tr>
-    <td>{{ row.hpo_label }}</td>
-    <td>{{ row.term_label }}</td>
-    <td>{{ uriToCurie(row.term) }}</td>
-    <td>{{ row.do_type }}</td>
-  </tr>
-  }
+    <tr>
+      <td>{{ uriToCurie(row.hpo_iri) }}</td>
+      <td>{{ row.hpo_label }}</td>
+      <td>{{ uriToCurie(row.term) }}</td>
+      <td>{{ row.term_label }}</td>
+    </tr>
+    }
   </table>
 </div>

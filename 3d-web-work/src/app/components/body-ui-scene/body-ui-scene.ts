@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-const organIri = '0001004';
+const organIri = '0000059';
 const REFERENCE_ORGAN_SCENE_URL =
   'https://apps.humanatlas.io/api/v1/reference-organ-scene?organ-iri=http%3A%2F%2Fpurl.obolibrary.org%2Fobo%2FUBERON_'+ organIri + '&sex=male';
 
@@ -132,7 +132,7 @@ export class BodyUiScene {
             ...baseNode,
             '@id': `${baseNode.scenegraph}#${glbNode.name}`,
             scenegraphNode: glbNode.name,
-            color: [0, 250, 0, 255],
+            color: [255, 0, 0, 250],
           });
         }
       }
