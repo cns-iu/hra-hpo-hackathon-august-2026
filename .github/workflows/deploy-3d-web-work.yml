@@ -2,7 +2,7 @@ name: Deploy 3d-web-work to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [3d-vis-andi]
     paths:
       - '3d-web-work/**'
       - '.github/workflows/deploy-3d-web-work.yml'
@@ -16,6 +16,9 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: true
+
+env:
+  DEPLOY_SUBPATH: 3d-vis-andi
 
 jobs:
   build:
@@ -35,13 +38,18 @@ jobs:
 
       - name: Build
         working-directory: 3d-web-work
-        run: npx ng build --configuration production --base-href /hra-hpo-hackathon-august-2026/
+        run: npx ng build --configuration production --base-href /hra-hpo-hackathon-august-2026/${{ env.DEPLOY_SUBPATH }}/
+
+      - name: Assemble site under subpath
+        run: |
+          mkdir -p site/${{ env.DEPLOY_SUBPATH }}
+          cp -r 3d-web-work/dist/babylon-app/browser/. site/${{ env.DEPLOY_SUBPATH }}/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: 3d-web-work/dist/babylon-app/browser
+          path: site
 
   deploy:
     needs: build
