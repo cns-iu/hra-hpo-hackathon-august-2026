@@ -1,9 +1,0 @@
-# Test genes for ASCT-B demo
-CTLA4
-CD4
-CD8A
-INS
-GCG
-KRT14
-PECAM1
-EPCAM

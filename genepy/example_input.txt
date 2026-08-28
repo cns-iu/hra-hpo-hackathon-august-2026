@@ -1,3 +1,0 @@
-# Example HPO terms (from Peter Robinson's slide)
-HP:0100886
-HP:0007373
