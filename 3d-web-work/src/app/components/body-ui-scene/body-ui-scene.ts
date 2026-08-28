@@ -137,7 +137,7 @@ export class BodyUiScene {
         }
       }
     }
-
+//
     this.sceneNodes.set([...this.originalSceneNodes, ...highlightNodes]);
   }
 
