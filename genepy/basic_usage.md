@@ -1,217 +1,153 @@
-# HPO to Ontologies Mapper
+# GenePy HRA-HPO Pipeline
 
-Maps HPO (Human Phenotype Ontology) terms to their corresponding UBERON, CL (Cell Ontology), and GO (Gene Ontology) terms.
+Tools for mapping patient phenotypes and gene locations using Human Reference Atlas (HRA) and Human Phenotype Ontology (HPO) data.
 
-## Quick Start
+## Table of Contents
+
+1. [Quick Setup](#quick-setup)
+2. [HPO to Ontologies Mapper](#hpo-to-ontologies-mapper) - Map patient phenotypes to anatomical/cellular terms
+3. [Gene to HRA Mapper](#gene-to-hra-mapper) - Map genes to anatomical locations and cell types
+4. [Patient-Gene Comparison & 3D Visualization](#patient-gene-comparison--3d-visualization) - Compare and visualize patient-gene matches
+
+---
+
+## Quick Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install rdflib requests pandas
-python genepy/connect_hpo_to_ontologies.py example_input.txt output.tsv
+pip install rdflib requests pandas matplotlib numpy
 ```
+
+---
+
+# HPO to Ontologies Mapper
+
+Maps HPO (Human Phenotype Ontology) terms to their corresponding UBERON, CL (Cell Ontology), and GO (Gene Ontology) terms.
 
 ## Usage
 
-Create an input file with HPO IDs (one per line):
-
+Input file with HPO IDs (one per line):
 ```
-# my_patient_hpos.txt
 HP:0100886
 HP:0007373
 ```
 
-Run the script:
-
+Run:
 ```bash
 python genepy/connect_hpo_to_ontologies.py my_patient_hpos.txt results.tsv
 ```
 
 ## Output Format
 
-TSV file with columns:
-- `HPO_ID`: HPO identifier
-- `HPO_Label`: Human-readable phenotype name
-- `Mapped_ID`: Single UBERON/CL/GO identifier (one row per mapping)
-- `Mapped_Label`: Corresponding label (fetched from OLS API if available)
+TSV with columns: `HPO_ID`, `HPO_Label`, `Mapped_ID`, `Mapped_Label`
 
-**Note:** If one HPO term maps to multiple ontology terms, it will appear on multiple rows.
-
-## Example
-
-Input (`example_input.txt`):
-```
-HP:0100886
-HP:0007373
-```
-
-Output (`output.tsv`):
-```
-HPO_ID      HPO_Label                        Mapped_ID       Mapped_Label
-HP:0100886  Abnormality of globe location    UBERON:0010230  eyeball of camera-type eye
-HP:0007373  Motor neuron atrophy             CL:0000100      motor neuron
-```
-
-If an HPO maps to multiple terms:
-```
-HPO_ID      HPO_Label    Mapped_ID       Mapped_Label
-HP:0001234  Example      UBERON:0001     tissue A
-HP:0001234  Example      UBERON:0002     tissue B
-HP:0001234  Example      CL:0001         cell type
-```
-
-## Notes
-
-- HPO ontology file (`hp.owl`) is cached in genepy/ directory
-- Comments in input file (lines starting with `#`) are ignored
-- Ontology labels fetched via OLS API (fails gracefully if offline)
+**Note:** One HPO term may map to multiple ontology terms (one row per mapping).
 
 ---
 
-# Gene to HRA Anatomy/Cell Types Mapper
+# Gene to HRA Mapper
 
-Maps gene symbols to their anatomical locations and cell types using HRA ASCT-B (Anatomical Structures, Cell Types, plus Biomarkers) curated data.
+# Gene to HRA Mapper
 
-## Quick Start
-
-```bash
-python genepy/gene_to_ontos_HRA.py gene.txt
-```
+Maps gene symbols to anatomical locations and cell types using HRA ASCT-B (Anatomical Structures, Cell Types, plus Biomarkers).
 
 ## Usage
 
-Create an input file with gene symbols (one per line):
-
+Input file with gene symbols (one per line):
 ```
-# my_genes.txt
 CTLA4
 CD4
 INS
 ```
 
-Run the script:
-
+Run:
 ```bash
-# Query all organs
-python genepy/gene_to_ontos_HRA.py my_genes.txt -o gene_results.csv
+# Query all 21 organs
+python genepy/gene_to_ontos_HRA.py genes.txt -o results.csv
 
 # Query specific organs only
-python genepy/gene_to_ontos_HRA.py my_genes.txt --organs lung thymus kidney
+python genepy/gene_to_ontos_HRA.py genes.txt --organs lung thymus kidney
 ```
 
 ## Output Format
 
-CSV file with columns:
-- `gene`: Gene symbol (uppercase)
-- `HGNC`: HGNC identifier
-- `UBERON`: UBERON anatomical structure ID
-- `anatomy`: Human-readable anatomical structure name
-- `CL`: Cell type identifier
-- `cell_type`: Human-readable cell type name
+CSV with columns: `gene`, `HGNC`, `UBERON`, `anatomy`, `CL`, `cell_type`
 
-## Example
-
-Input (`gene.txt`):
-```
-CTLA4
-```
-
-Output (`hra_gene_locations.csv`):
-```csv
-gene,HGNC,UBERON,anatomy,CL,cell_type
-CTLA4,HGNC:2505,UBERON:0002405,immune system of respiratory tract,CL:0000815,regulatory T cell
-CTLA4,HGNC:2505,UBERON:0002371,Bone marrow,CL:0000824,mature Natural killer
-CTLA4,HGNC:2505,UBERON:0002124,medulla of thymus,CL:0002677,regulatory T cells
-```
-
-## Available Organs
-
-Queries 21 HRA organs: kidney, liver, lung, heart, skin, eye, spleen, thymus, ovary, prostate, pancreas, bone-marrow, lymph-node, large-intestine, small-intestine, blood-vasculature, knee, peripheral-nervous-system, fallopian-tube, uterus, ureter.
-
-## Notes
-
-- Uses HRA ASCT-B JSON API (no SPARQL dependency)
-- Gene symbols must match HGNC naming conventions
-- Returns curated biomarker-cell-anatomy relationships from ASCT-B tables
+**Available organs:** kidney, liver, lung, heart, skin, eye, spleen, thymus, ovary, prostate, pancreas, bone-marrow, lymph-node, large-intestine, small-intestine, blood-vasculature, knee, peripheral-nervous-system, fallopian-tube, uterus, ureter
 
 ---
 
-# Patient-Gene Ontology Comparison
+# Patient-Gene Comparison & 3D Visualization
 
-Combines patient HPO phenotypes with candidate gene mappings to identify overlapping anatomical/cellular contexts.
-
-## Quick Start
-
-```bash
-python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.txt
-```
-
-## Workflow
-
-The script performs three steps:
-1. **Maps patient HPO terms** → CL, UBERON, GO ontology terms
-2. **Maps candidate genes** → CL, UBERON terms from HRA ASCT-B
-3. **Compares term sets** using set operations (placeholder implementation)
+Compares patient HPO phenotypes with candidate genes and generates a 3D scatter plot showing phenotype score, GenePy score, and ontology overlap score.
 
 ## Usage
 
-Create input files:
-```
-# patient_hpo.txt
-HP:0001876
-HP:0002716
-HP:0002583
+### Input Format
 
-# candidate_genes.txt
+**Option 1: Simple gene list** (`genes.txt`):
+```
 CTLA4
 CD4
 IL2RA
 ```
 
-Run comparison:
+**Option 2: TSV with scores** (`candidate_genes.tsv`):
+```tsv
+gene    phenotype    GenePy
+CTLA4   0.906        1.000
+CD4     0.514        0.891
+IL2RA   0.413        0.647
+```
+
+### Run Comparison
+
 ```bash
-# Basic usage
-python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.txt
+# With TSV input (includes 3D visualization)
+python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.tsv
 
 # Save intermediate mappings
-python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.txt --save-intermediate
+python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.tsv --save-intermediate
 
-# Query specific organs only
-python genepy/compare_patient_genes.py patient_hpo.txt candidate_genes.txt --organs lung thymus
+# Custom output paths
+python genepy/compare_patient_genes.py patient_hpo.txt genes.tsv -o results.csv --plot 3d_plot.png
+
+# Query specific organs
+python genepy/compare_patient_genes.py patient_hpo.txt genes.tsv --organs lung thymus
 ```
 
-## Output
+## Output Files
 
-Main output (`comparison_results.csv`):
-```csv
-gene,cl_overlap_count,uberon_overlap_count,total_overlap,cl_matches,uberon_matches
-CD4,2,1,3,CL:0000624;CL:0000815,UBERON:0002371
-CTLA4,1,1,2,CL:0000815,UBERON:0002371
+- **comparison_results.csv** - All genes with overlap scores and matches
+- **gene_comparison_3d.png** - 3D scatter plot (if TSV input used)
+- **patient_hpo_mappings.tsv** - Patient HPO→ontology mappings (with `--save-intermediate`)
+- **candidate_gene_mappings.csv** - Gene→anatomy/cell mappings (with `--save-intermediate`)
+
+## Scoring Formula
+
+```
+score = intersection_size / log₁₀(gene_union_size)
 ```
 
-Optional intermediate files (with `--save-intermediate`):
-- `patient_hpo_mappings.tsv` - HPO term mappings
-- `candidate_gene_mappings.csv` - Gene-to-anatomy/cell mappings
+Where:
+- **Patient union**: All CL + UBERON terms from patient's HPO phenotype
+- **Gene union**: All CL + UBERON terms from gene's ASCT-B mappings
+- **Intersection**: Terms appearing in both unions
 
-## Customization
+## 3D Visualization
 
-The `compare_terms()` function contains placeholder logic. Implement your own strategy:
+When using TSV input with `phenotype` and `GenePy` columns:
+- **X-axis**: Phenotype score
+- **Y-axis**: GenePy score  
+- **Z-axis**: Ontology overlap score (calculated by formula above)
+- Top 10 genes labeled automatically
+- Color-coded by comparison score
 
-```python
-def compare_terms(patient_terms, gene_terms):
-    # Your custom comparison logic here
-    # Examples:
-    # - Jaccard similarity
-    # - Weighted scoring (CL vs UBERON)
-    # - Ontology graph distance
-    # - Ranking by relevance
-    return results
-```
+## Notes
 
-## Example Use Case
-
-Prioritize candidate genes for a patient with immune phenotypes:
-1. Patient has HPO terms related to immune dysfunction
-2. These map to specific cell types (T cells, B cells) and tissues (thymus, bone marrow)
-3. Compare with genes known to be expressed in those cell types/tissues
-4. Rank genes by anatomical/cellular context overlap with patient phenotype
+- **Exact term matching**: Currently uses exact ontology ID matching (no hierarchical expansion)
+- **Limited matches expected**: CL/UBERON terms may not overlap due to granularity differences
+  - Example: Patient has `CL:0000542` (lymphocyte), gene has `CL:0000815` (regulatory T cell)
+  - These are hierarchically related but won't match with exact comparison
+- **Future enhancement**: Load CL.owl/UBERON.owl to expand terms to ancestors for hierarchical matching
