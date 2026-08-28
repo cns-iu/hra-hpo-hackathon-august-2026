@@ -4,4 +4,8 @@ Most of what is in here has been vibe coded with Claude Sonnet 4.5 in github cop
 
 Most of what Claude did seems decent, honestly. Had to steer into the right direction, though. I have not really evaluated the code at this stage. I think this might actually be in better shape than what I thought. 
 
-There is one very quick and easy way to get some possibly decent result. Just take whatever CL or UBERON terms we have, both for patient and gene, and add to them the implied ontology terms "above" them via [oaklib](https://github.com/INCATools/ontology-access-kit). I have done this before, it should be rather easy. Then, just do a Jaccard index (intersection over union) of those to get a score. Other possibilities: use information content. I think in like less than a day of work all of this could actually be done prototyped. If we then run it on a few a bit more challenging cases where we know the right answer I would probably redesign the pipeline from scratch or at least take a long hard look at the LLM's code. 
+There is one very quick and easy way to get some possibly decent results. Just take whatever CL or UBERON terms we have, both for patient and gene, and add to them the implied ontology terms "above" them via [oaklib](https://github.com/INCATools/ontology-access-kit). I have done this before, it should be rather easy. Then, just do a Jaccard index (intersection over union) of patient and putative gene to get a score. 
+
+Other possibilities: use information content. 
+
+I think in like less than a day of work all of this could actually be prototyped. If we then run it on a few a bit more challenging cases, where we know the right answer, and we get promising results, I would then probably redesign the pipeline from scratch or at least take a long hard look at the LLM's code before continuing. 
