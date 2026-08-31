@@ -91,11 +91,8 @@ def parse_asctb_organ(organ_data, target_genes):
         # Process each biomarker (gene)
         for hgnc_id in biomarker_set:
             gene_symbol = extract_gene_symbol(hgnc_id, biomarkers_lookup).upper()
-
             # Check if this gene is in our target list
-            if gene_symbol in target_genes or any(
-                gene in gene_symbol for gene in target_genes
-            ):
+            if gene_symbol in target_genes:
                 rows.append(
                     {
                         "gene": gene_symbol,

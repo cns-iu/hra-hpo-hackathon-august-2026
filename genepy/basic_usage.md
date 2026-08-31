@@ -16,7 +16,7 @@ Tools for mapping patient phenotypes and gene locations using Human Reference At
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install rdflib requests pandas matplotlib numpy
+pip install rdflib requests pandas matplotlib numpy oaklib
 ```
 
 ---

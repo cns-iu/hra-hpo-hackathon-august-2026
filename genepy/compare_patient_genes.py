@@ -18,6 +18,10 @@ import math
 from pathlib import Path
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from oaklib.datamodels.vocabulary import IS_A
+from oaklib.interfaces import MappingProviderInterface
+from oaklib.interfaces import OboGraphInterface
+from oaklib import get_adapter
 
 # Import functions from existing scripts
 from connect_hpo_to_ontologies import process_hpo_terms
@@ -106,9 +110,40 @@ def extract_gene_terms(gene_mappings):
     return gene_terms
 
 
-def compare_terms(patient_terms, gene_terms):
+def add_ancestors(
+    ontology_base_terms: dict[str, set[str]], adapters: dict[str, OboGraphInterface]
+) -> dict[str, set[str]]:
+    # for each item in ontology base terms
+    for onto, terms in ontology_base_terms.items():
+        all_ancestors = set(
+            adapters[onto].ancestors(list(terms), predicates=[IS_A], reflexive=True)
+        )
+        # Only keep terms from the same ontology prefix
+        ontology_base_terms[onto] = {
+            t for t in all_ancestors if t.startswith(f"{onto}:")
+        }
+    return ontology_base_terms
+
+
+def generate_adapter(onto: str) -> OboGraphInterface:
     """
-    Compare patient ontology terms with gene ontology terms.
+    Get the adapter for the `onto` ontology.
+
+    Returns:
+        Adapter: The adapter.
+    """
+    adapter_implementation = f"sqlite:obo:{onto}"
+    print("Using adapter implementation: {}", adapter_implementation)
+    return get_adapter(adapter_implementation)
+
+
+def compare_terms(
+    patient_terms: dict[str, set[str]],
+    gene_terms: dict[str, dict[str, set[str]]],
+    use_implied_terms=True,
+) -> dict:
+    """
+    Compare patient ontology terms with gene's ontology terms.
 
     Score formula:
     1. Union gene's CL and UBERON terms
@@ -124,39 +159,75 @@ def compare_terms(patient_terms, gene_terms):
         dict mapping gene -> comparison metrics including score
     """
     results = {}
-
     # Patient union of CL and UBERON terms
-    patient_union = patient_terms["CL"] | patient_terms["UBERON"]
+    if use_implied_terms:
+        adapters = {
+            onto: generate_adapter(str(onto).lower()) for onto in patient_terms.keys()
+        }
+        print(
+            f"DEBUG: patient_terms BEFORE: CL={len(patient_terms['CL'])}, UBERON={len(patient_terms['UBERON'])}"
+        )
+        patient_terms = add_ancestors(patient_terms, adapters)
+        print(
+            f"DEBUG: patient_terms AFTER: CL={len(patient_terms['CL'])}, UBERON={len(patient_terms['UBERON'])}"
+        )
 
-    for gene, gene_ontologies in gene_terms.items():
+        for gene, onto_terms_of_gene in gene_terms.items():
+            print(
+                f"DEBUG: {gene} BEFORE: CL={len(onto_terms_of_gene['CL'])}, UBERON={len(onto_terms_of_gene['UBERON'])}"
+            )
+            gene_terms[gene] = add_ancestors(onto_terms_of_gene, adapters)
+            print(
+                f"DEBUG: {gene} AFTER: CL={len(gene_terms[gene]['CL'])}, UBERON={len(gene_terms[gene]['UBERON'])}"
+            )
+
+    # patient_union = patient_terms["CL"] | patient_terms["UBERON"]
+
+    for gene, ontologies_associated_with_gene in gene_terms.items():
         # Gene union of CL and UBERON terms
-        gene_union = gene_ontologies["CL"] | gene_ontologies["UBERON"]
+        # gene_union = (
+        #     ontologies_associated_with_gene["CL"]
+        #     | ontologies_associated_with_gene["UBERON"]
+        # )
 
         # Find intersection between patient and gene unions
-        intersection = patient_union & gene_union
-        intersection_size = len(intersection)
+        # intersection = patient_union & gene_union
+        # intersection_size = len(intersection)
 
-        # Calculate score: intersection_size / log10(gene_union_size)
-        gene_union_size = len(gene_union)
-        if gene_union_size > 1:
-            log_denominator = math.log10(gene_union_size)
-            score = intersection_size / log_denominator
-        elif gene_union_size == 1:
-            # log10(1) = 0, so just use intersection size
-            score = float(intersection_size)
-        else:
-            score = 0.0
+        # # Calculate score: intersection_size / log10(gene_union_size)
+        # gene_union_size = len(gene_union)
+        # if gene_union_size > 1:
+        #     log_denominator = math.log10(gene_union_size)
+        #     score = intersection_size / log_denominator
+        # elif gene_union_size == 1:
+        #     # log10(1) = 0, so just use intersection size
+        #     score = float(intersection_size)
+        # else:
+        #     score = 0.0
 
+        # Alternative score: Jaccard score of full implied ontology:
         # Also track individual overlaps for reference
-        cl_overlap = patient_terms["CL"] & gene_ontologies["CL"]
-        uberon_overlap = patient_terms["UBERON"] & gene_ontologies["UBERON"]
+        cl_overlap = patient_terms["CL"] & ontologies_associated_with_gene["CL"]
+        cl_union = patient_terms["CL"] | ontologies_associated_with_gene["CL"]
+        cl_jaccard = len(cl_overlap) / len(cl_union)
 
+        uberon_overlap = (
+            patient_terms["UBERON"] & ontologies_associated_with_gene["UBERON"]
+        )
+        uberon_union = (
+            patient_terms["UBERON"] | ontologies_associated_with_gene["UBERON"]
+        )
+        uberon_jaccard = len(uberon_overlap) / len(uberon_union)
+
+        # TODO: naive average, LOTS could be made better here!
+        score = (cl_jaccard + uberon_jaccard) / 2
         results[gene] = {
             "cl_overlap_count": len(cl_overlap),
-            "uberon_overlap_count": len(uberon_overlap),
+            "cl_union_count": len(cl_union),
             "cl_matches": cl_overlap,
+            "uberon_overlap_count": len(uberon_overlap),
+            "uberon_union_count": len(uberon_union),
             "uberon_matches": uberon_overlap,
-            "total_overlap": intersection_size,
             "score": score,
         }
 
@@ -305,7 +376,7 @@ def main():
     genes_df = load_candidate_genes_with_scores(args.candidate_genes_tsv)
     gene_symbols = set(genes_df["gene"].str.upper())
 
-    print(f"  Found {len(gene_symbols)} genes from TSV")
+    print(f"  Found {len(gene_symbols)} genes from TSV. Here they are:\n{gene_symbols}")
     print(
         f"  Phenotype score range: {genes_df['phenotype'].min():.3f} - {genes_df['phenotype'].max():.3f}"
     )
@@ -340,7 +411,6 @@ def main():
                 "gene": gene,
                 "cl_overlap_count": result["cl_overlap_count"],
                 "uberon_overlap_count": result["uberon_overlap_count"],
-                "total_overlap": result["total_overlap"],
                 "score": result["score"],
                 "cl_matches": ";".join(sorted(result["cl_matches"])),
                 "uberon_matches": ";".join(sorted(result["uberon_matches"])),
@@ -361,7 +431,6 @@ def main():
     results_df["uberon_overlap_count"] = (
         results_df["uberon_overlap_count"].fillna(0).astype(int)
     )
-    results_df["total_overlap"] = results_df["total_overlap"].fillna(0).astype(int)
     results_df["score"] = results_df["score"].fillna(0.0)
     results_df["cl_matches"] = results_df["cl_matches"].fillna("")
     results_df["uberon_matches"] = results_df["uberon_matches"].fillna("")
@@ -376,12 +445,11 @@ def main():
     print(f"\n✅ Comparison complete!")
     print(f"   Results saved to {args.output}")
     print(f"\nTop genes by comparison score:")
-    display_cols = ["gene", "phenotype", "GenePy", "comparison_score", "total_overlap"]
+    display_cols = ["gene", "phenotype", "GenePy", "comparison_score"]
     for _, row in results_df[display_cols].head(10).iterrows():
         print(
             f"  {row['gene']:10s} - Phenotype: {row['phenotype']:.3f}, "
             f"GenePy: {row['GenePy']:.3f}, Comparison: {row['comparison_score']:.3f} "
-            f"({row['total_overlap']} overlaps)"
         )
 
     # Create 3D plot
