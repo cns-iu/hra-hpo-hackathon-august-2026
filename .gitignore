@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# OWL ontology files
+*.owl
+
+# Output files
+*.tsv

@@ -1,0 +1,3 @@
+gene	phenotype	GenePy	product	Score_HRA	CL_spec	tissue	class
+CTLA4	0.906	1.000	0.9060	2.598	0.096	lung	Monogenic IBD
+MMUT	0.413	0.891	0.3680	0.000	0.000	—	Other
